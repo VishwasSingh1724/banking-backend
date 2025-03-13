@@ -37,37 +37,40 @@ router.post("/register", async (req, res) => {
 });
 
 
+// In your auth route file
 router.post("/login", async (req, res) => {
-    const { email, password, role } = req.body; // Get role from request body
-    console.log(email, password, role);
+  const { email, password } = req.body;
   
-    if (!role || (role !== "customer" && role !== "banker")) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
+  try {
   
-    // Fetch user based on email and role
-    const { data, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("email", email)
-      .eq("role", role)
-      .single();
-  
-    if (error || !data || !(await bcrypt.compare(password, data.password))) {
-      return res.status(400).json({ error: "Invalid credentials" });
-    }
-  
-    // Generate JWT token
-    const token = jwt.sign(
-      { id: data.id, role: data.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-  if(role =="banker"){
-    res.json({ token, user: { id: data.id, name: data.name, role: data.role,isAdmin:true } });
-  }else{
-    res.json({ token, user: { id: data.id, name: data.name, role: data.role } });
+      const { data, error } = await supabase
+          .from("users")
+          .select("*")
+          .eq("email", email)
+          .single();
+          
+      if (error || !data) {
+          return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const validPassword = await bcrypt.compare(password, data.password);
+      if (!validPassword) {
+          return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+          { 
+              id: data.id, 
+              email: data.email,
+              isBanker: data.role === 'banker' 
+          }, 
+          process.env.JWT_SECRET, 
+          { expiresIn: '24h' }
+      );
+      
+      res.json({ token, user: { id: data.id, email: data.email, role: data.role,isAdmin:data.role === 'banker' } });
+  } catch (err) {
+      res.status(500).json({ error: err.message });
   }
-  });
-  
+});
 module.exports = router;
